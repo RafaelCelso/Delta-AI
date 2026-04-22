@@ -1,9 +1,18 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
+import { useRouter } from "next/navigation";
 import { useAuth } from "@/contexts/AuthContext";
-import { MemberList, type Member } from "@/components/MemberList";
+import { useOrganization } from "@/contexts/OrganizationContext";
+import { useToast } from "@/contexts/ToastContext";
+import {
+  MemberList,
+  type Member,
+  type PendingInvitation,
+} from "@/components/MemberList";
 import { InviteDialog } from "@/components/InviteDialog";
+import { LeaveOrganizationDialog } from "@/components/LeaveOrganizationDialog";
+import { DeleteOrganizationDialog } from "@/components/DeleteOrganizationDialog";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -14,6 +23,7 @@ import {
   Calendar,
   Shield,
   Crown,
+  AlertTriangle,
 } from "lucide-react";
 
 interface OrganizationDetails {
@@ -23,6 +33,7 @@ interface OrganizationDetails {
   created_at: string;
   updated_at: string;
   members: Member[];
+  pending_invitations: PendingInvitation[];
 }
 
 interface OrganizationSettingsProps {
@@ -33,30 +44,66 @@ export function OrganizationSettings({
   organizationId,
 }: OrganizationSettingsProps) {
   const { user } = useAuth();
+  const { refreshOrganizations, organizations } = useOrganization();
+  const { addToast } = useToast();
+  const router = useRouter();
   const [org, setOrg] = useState<OrganizationDetails | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [isInviteOpen, setIsInviteOpen] = useState(false);
+  const [isLeaveOpen, setIsLeaveOpen] = useState(false);
+  const [isDeleteOpen, setIsDeleteOpen] = useState(false);
 
-  const fetchOrganization = useCallback(async () => {
-    setIsLoading(true);
-    setError(null);
+  const fetchOrganization = useCallback(
+    async (showLoading = true) => {
+      if (showLoading) setIsLoading(true);
+      setError(null);
 
-    try {
-      const res = await fetch(`/api/organizations/${organizationId}`);
-      if (!res.ok) {
-        const data = await res.json();
-        setError(data.error ?? "Erro ao carregar organização.");
-        return;
+      try {
+        const res = await fetch(`/api/organizations/${organizationId}`);
+        if (!res.ok) {
+          const data = await res.json();
+          setError(data.error ?? "Erro ao carregar organização.");
+          return;
+        }
+        const data: OrganizationDetails = await res.json();
+        setOrg(data);
+      } catch {
+        setError("Erro de conexão ao carregar organização.");
+      } finally {
+        if (showLoading) setIsLoading(false);
       }
-      const data: OrganizationDetails = await res.json();
-      setOrg(data);
-    } catch {
-      setError("Erro de conexão ao carregar organização.");
-    } finally {
-      setIsLoading(false);
+    },
+    [organizationId],
+  );
+
+  const refreshOrganization = useCallback(() => {
+    return fetchOrganization(false);
+  }, [fetchOrganization]);
+
+  async function handleLeaveSuccess() {
+    const orgName = org?.name ?? "";
+    await refreshOrganizations();
+    addToast("info", `Você saiu da organização ${orgName}.`);
+    const remaining = organizations.filter((o) => o.id !== organizationId);
+    if (remaining.length > 0) {
+      router.push(`/organizations/${remaining[0].id}/settings`);
+    } else {
+      router.push("/onboarding");
     }
-  }, [organizationId]);
+  }
+
+  async function handleDeleteSuccess() {
+    const orgName = org?.name ?? "";
+    await refreshOrganizations();
+    addToast("info", `Organização ${orgName} excluída com sucesso.`);
+    const remaining = organizations.filter((o) => o.id !== organizationId);
+    if (remaining.length > 0) {
+      router.push(`/organizations/${remaining[0].id}/settings`);
+    } else {
+      router.push("/onboarding");
+    }
+  }
 
   useEffect(() => {
     fetchOrganization();
@@ -146,6 +193,15 @@ export function OrganizationSettings({
                   <Badge variant="secondary" className="text-[10px] font-bold">
                     {org.members.length}
                   </Badge>
+                  {(org.pending_invitations?.length ?? 0) > 0 && (
+                    <Badge
+                      variant="outline"
+                      className="text-[10px] font-bold border-blue-500/30 bg-blue-500/10 text-blue-400 hover:bg-blue-500/10"
+                    >
+                      {org.pending_invitations.length} pendente
+                      {org.pending_invitations.length > 1 ? "s" : ""}
+                    </Badge>
+                  )}
                 </div>
                 {canManage && (
                   <Button
@@ -162,10 +218,11 @@ export function OrganizationSettings({
               {/* Members Table */}
               <MemberList
                 members={org.members}
+                pendingInvitations={org.pending_invitations ?? []}
                 ownerId={org.owner_id}
                 organizationId={org.id}
                 canManage={canManage}
-                onMemberRemoved={fetchOrganization}
+                onMemberRemoved={refreshOrganization}
               />
             </div>
           </div>
@@ -268,6 +325,36 @@ export function OrganizationSettings({
                 </div>
               </div>
             </div>
+
+            {/* Zona de Perigo Card */}
+            <div className="rounded-lg border border-destructive/30 bg-card">
+              <div className="flex items-center gap-2 border-b border-destructive/30 px-4 py-3">
+                <AlertTriangle className="h-4 w-4 text-destructive" />
+                <h3 className="text-sm font-semibold text-destructive">
+                  Zona de Perigo
+                </h3>
+              </div>
+              <div className="flex flex-col gap-3 p-4">
+                {!isOwner && (
+                  <Button
+                    variant="outline"
+                    className="border-destructive/30 text-destructive hover:bg-destructive/10 hover:text-destructive"
+                    onClick={() => setIsLeaveOpen(true)}
+                  >
+                    Sair da Organização
+                  </Button>
+                )}
+                {isOwner && (
+                  <Button
+                    variant="outline"
+                    className="border-destructive/30 text-destructive hover:bg-destructive/10 hover:text-destructive"
+                    onClick={() => setIsDeleteOpen(true)}
+                  >
+                    Excluir Organização
+                  </Button>
+                )}
+              </div>
+            </div>
           </div>
         </div>
       </div>
@@ -276,7 +363,23 @@ export function OrganizationSettings({
         organizationId={org.id}
         isOpen={isInviteOpen}
         onClose={() => setIsInviteOpen(false)}
-        onInviteSent={fetchOrganization}
+        onInviteSent={refreshOrganization}
+      />
+
+      <LeaveOrganizationDialog
+        organizationId={org.id}
+        organizationName={org.name}
+        isOpen={isLeaveOpen}
+        onClose={() => setIsLeaveOpen(false)}
+        onLeaveSuccess={handleLeaveSuccess}
+      />
+
+      <DeleteOrganizationDialog
+        organizationId={org.id}
+        organizationName={org.name}
+        isOpen={isDeleteOpen}
+        onClose={() => setIsDeleteOpen(false)}
+        onDeleteSuccess={handleDeleteSuccess}
       />
     </div>
   );

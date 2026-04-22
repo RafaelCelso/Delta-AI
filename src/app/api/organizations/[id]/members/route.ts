@@ -44,7 +44,9 @@ export async function POST(
   // Find the invitation by token and organization
   const { data: invitation, error: inviteError } = await supabase
     .from("invitations")
-    .select("id, organization_id, status, expires_at")
+    .select(
+      "id, organization_id, invited_email, invited_by, status, expires_at",
+    )
     .eq("token", token)
     .eq("organization_id", orgId)
     .single();
@@ -122,6 +124,28 @@ export async function POST(
       { error: `Erro ao atualizar convite: ${updateError.message}` },
       { status: 500 },
     );
+  }
+
+  // Notify the org owner that the invite was accepted
+  const { data: org } = await supabase
+    .from("organizations")
+    .select("owner_id, name")
+    .eq("id", orgId)
+    .single();
+
+  if (org) {
+    const userName = user.email ?? "Um usuário";
+    await supabase.from("notifications").insert({
+      user_id: org.owner_id,
+      type: "invite_accepted",
+      title: "Convite aceito",
+      message: `${userName} aceitou o convite para a organização ${org.name}.`,
+      metadata: {
+        organization_id: orgId,
+        organization_name: org.name,
+        invited_email: invitation.invited_email,
+      },
+    });
   }
 
   return NextResponse.json(

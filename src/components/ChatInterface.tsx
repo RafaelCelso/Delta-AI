@@ -143,12 +143,12 @@ export function ChatInterface() {
 
   // Create a new session
   const handleNewSession = useCallback(async () => {
-    if (!activeOrg) return;
+    if (!activeOrg?.id) return;
     await createNewSession();
     setMessages([]);
     setError(null);
     inputRef.current?.focus();
-  }, [activeOrg, createNewSession]);
+  }, [activeOrg?.id, createNewSession]);
 
   // Send a message
   const handleSend = useCallback(async () => {

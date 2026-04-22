@@ -44,8 +44,10 @@ export function SessionList({
   const [error, setError] = useState<string | null>(null);
   const [searchFilters, setSearchFilters] = useState<SessionSearchFilters>({});
 
+  const activeOrgId = activeOrg?.id ?? null;
+
   const fetchSessions = useCallback(async () => {
-    if (!activeOrg) {
+    if (!activeOrgId) {
       setSessions([]);
       setIsLoading(false);
       return;
@@ -64,7 +66,7 @@ export function SessionList({
       const baseUrl = hasFilters ? "/api/sessions/search" : "/api/sessions";
 
       const params = new URLSearchParams({
-        organization_id: activeOrg.id,
+        organization_id: activeOrgId,
       });
 
       if (searchFilters.q) params.set("q", searchFilters.q);
@@ -87,7 +89,7 @@ export function SessionList({
     } finally {
       setIsLoading(false);
     }
-  }, [activeOrg, searchFilters]);
+  }, [activeOrgId, searchFilters]);
 
   useEffect(() => {
     fetchSessions();

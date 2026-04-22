@@ -6,6 +6,7 @@ import {
   useEffect,
   useState,
   useCallback,
+  useRef,
   useMemo,
   type ReactNode,
 } from "react";
@@ -37,8 +38,14 @@ export function OrganizationProvider({ children }: { children: ReactNode }) {
   const [activeOrg, setActiveOrg] = useState<Organization | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
+  // Track the user id we last fetched for, so we only re-fetch when the
+  // actual user changes — not on every token refresh.
+  const fetchedForUserIdRef = useRef<string | null>(null);
+
+  const userId = user?.id ?? null;
+
   const fetchOrganizations = useCallback(async () => {
-    if (!user) {
+    if (!userId) {
       setOrganizations([]);
       setActiveOrg(null);
       setIsLoading(false);
@@ -70,13 +77,17 @@ export function OrganizationProvider({ children }: { children: ReactNode }) {
     } finally {
       setIsLoading(false);
     }
-  }, [user]);
+  }, [userId]);
 
   useEffect(() => {
-    if (!authLoading) {
-      fetchOrganizations();
-    }
-  }, [authLoading, fetchOrganizations]);
+    if (authLoading) return;
+
+    // Only fetch if the user actually changed
+    if (fetchedForUserIdRef.current === userId) return;
+    fetchedForUserIdRef.current = userId;
+
+    fetchOrganizations();
+  }, [authLoading, userId, fetchOrganizations]);
 
   const value: OrganizationContextType = useMemo(
     () => ({

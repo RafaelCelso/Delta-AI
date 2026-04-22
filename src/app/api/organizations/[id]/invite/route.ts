@@ -72,6 +72,55 @@ export async function POST(
     );
   }
 
+  // --- Validation 1: Check if email belongs to a registered user ---
+  const { data: profileId, error: profileLookupError } = await supabase.rpc(
+    "get_profile_id_by_email",
+    { p_email: email },
+  );
+
+  if (profileLookupError || !profileId) {
+    return NextResponse.json(
+      { error: "Nenhum usuário cadastrado com este e-mail." },
+      { status: 404 },
+    );
+  }
+
+  // --- Validation 2: Check for duplicate pending invite ---
+  const { data: existingInvite } = await supabase
+    .from("invitations")
+    .select("id")
+    .eq("invited_email", email)
+    .eq("organization_id", orgId)
+    .eq("status", "pending")
+    .gt("expires_at", new Date().toISOString())
+    .limit(1)
+    .maybeSingle();
+
+  if (existingInvite) {
+    return NextResponse.json(
+      {
+        error:
+          "Já existe um convite pendente para este e-mail nesta organização.",
+      },
+      { status: 409 },
+    );
+  }
+
+  // --- Validation 3: Check if user is already a member ---
+  const { data: existingMember } = await supabase
+    .from("organization_members")
+    .select("id")
+    .eq("organization_id", orgId)
+    .eq("user_id", profileId)
+    .maybeSingle();
+
+  if (existingMember) {
+    return NextResponse.json(
+      { error: "Este usuário já é membro da organização." },
+      { status: 409 },
+    );
+  }
+
   // Create the invitation
   const { data: invitation, error: inviteError } = await supabase
     .from("invitations")

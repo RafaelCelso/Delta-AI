@@ -6,8 +6,10 @@ import {
   useState,
   useCallback,
   useMemo,
+  useEffect,
   type ReactNode,
 } from "react";
+import { CheckCircle2, XCircle, Info, AlertTriangle, X } from "lucide-react";
 
 export type ToastType = "success" | "error" | "info" | "warning";
 
@@ -80,16 +82,7 @@ function ToastContainer({
 
   return (
     <div
-      style={{
-        position: "fixed",
-        top: "1rem",
-        right: "1rem",
-        zIndex: 9999,
-        display: "flex",
-        flexDirection: "column",
-        gap: "0.5rem",
-        maxWidth: "400px",
-      }}
+      className="fixed bottom-4 right-4 z-[9999] flex flex-col gap-2 max-w-[400px]"
       aria-live="polite"
       aria-label="Notificações"
     >
@@ -102,14 +95,34 @@ function ToastContainer({
 
 /* ---------- Individual Toast ---------- */
 
-const typeStyles: Record<
+const toastConfig: Record<
   ToastType,
-  { bg: string; border: string; color: string }
+  {
+    icon: typeof CheckCircle2;
+    containerClass: string;
+    iconClass: string;
+  }
 > = {
-  success: { bg: "#f0fdf4", border: "#86efac", color: "#166534" },
-  error: { bg: "#fef2f2", border: "#fecaca", color: "#991b1b" },
-  info: { bg: "#eff6ff", border: "#93c5fd", color: "#1e40af" },
-  warning: { bg: "#fffbeb", border: "#fcd34d", color: "#92400e" },
+  success: {
+    icon: CheckCircle2,
+    containerClass: "border-emerald-800 bg-emerald-950",
+    iconClass: "text-emerald-400",
+  },
+  error: {
+    icon: XCircle,
+    containerClass: "border-red-800 bg-red-950",
+    iconClass: "text-red-400",
+  },
+  info: {
+    icon: Info,
+    containerClass: "border-blue-800 bg-blue-950",
+    iconClass: "text-blue-400",
+  },
+  warning: {
+    icon: AlertTriangle,
+    containerClass: "border-amber-800 bg-amber-950",
+    iconClass: "text-amber-400",
+  },
 };
 
 function ToastItem({
@@ -119,43 +132,35 @@ function ToastItem({
   toast: Toast;
   onDismiss: (id: string) => void;
 }) {
-  const s = typeStyles[toast.type];
+  const [visible, setVisible] = useState(false);
+  const config = toastConfig[toast.type];
+  const Icon = config.icon;
+
+  useEffect(() => {
+    // Trigger enter animation on next frame
+    const frame = requestAnimationFrame(() => setVisible(true));
+    return () => cancelAnimationFrame(frame);
+  }, []);
 
   return (
     <div
       role="alert"
-      style={{
-        display: "flex",
-        alignItems: "flex-start",
-        gap: "0.5rem",
-        padding: "0.75rem 1rem",
-        backgroundColor: s.bg,
-        border: `1px solid ${s.border}`,
-        borderRadius: "8px",
-        boxShadow: "0 4px 6px rgba(0, 0, 0, 0.1)",
-        fontSize: "0.875rem",
-        color: s.color,
-        fontFamily: "system-ui, -apple-system, sans-serif",
-        animation: "slideIn 0.2s ease-out",
-      }}
+      className={`
+        flex items-start gap-3 rounded-lg border bg-card p-3 shadow-lg
+        transition-all duration-200 ease-out
+        ${config.containerClass}
+        ${visible ? "translate-x-0 opacity-100" : "translate-x-4 opacity-0"}
+      `}
     >
-      <span style={{ flex: 1 }}>{toast.message}</span>
+      <Icon className={`h-4 w-4 mt-0.5 shrink-0 ${config.iconClass}`} />
+      <span className="flex-1 text-sm text-foreground">{toast.message}</span>
       <button
         type="button"
         onClick={() => onDismiss(toast.id)}
         aria-label="Fechar notificação"
-        style={{
-          background: "none",
-          border: "none",
-          cursor: "pointer",
-          fontSize: "1rem",
-          lineHeight: 1,
-          color: s.color,
-          opacity: 0.7,
-          padding: 0,
-        }}
+        className="shrink-0 rounded-md p-0.5 text-muted-foreground transition-colors hover:text-foreground"
       >
-        ×
+        <X className="h-3.5 w-3.5" />
       </button>
     </div>
   );

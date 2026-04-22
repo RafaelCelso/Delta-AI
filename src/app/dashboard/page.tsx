@@ -6,6 +6,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useOrganization } from "@/contexts/OrganizationContext";
 import { useSession } from "@/contexts/SessionContext";
 import { fetchWithOrg } from "@/lib/fetchWithOrg";
+import { createClient } from "@/lib/supabase/client";
 import { Skeleton } from "@/components/ui/skeleton";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -22,6 +23,7 @@ import {
   TrendingUp,
   Settings,
 } from "lucide-react";
+import { CreateOrganizationDialog } from "@/components/CreateOrganizationDialog";
 
 interface DocumentSummary {
   total: number;
@@ -51,9 +53,32 @@ export default function DashboardPage() {
     error: 0,
   });
   const [isLoadingDocs, setIsLoadingDocs] = useState(true);
+  const [profileName, setProfileName] = useState<string | null>(null);
+
+  const activeOrgId = activeOrg?.id ?? null;
+
+  useEffect(() => {
+    async function fetchProfile() {
+      if (!user) return;
+      try {
+        const supabase = createClient();
+        const { data } = await supabase
+          .from("profiles")
+          .select("full_name")
+          .eq("id", user.id)
+          .single();
+        if (data?.full_name) {
+          setProfileName(data.full_name);
+        }
+      } catch {
+        // best-effort — fallback to email
+      }
+    }
+    fetchProfile();
+  }, [user]);
 
   const fetchDocuments = useCallback(async () => {
-    if (!activeOrg) {
+    if (!activeOrgId) {
       setDocuments([]);
       setDocSummary({ total: 0, indexed: 0, processing: 0, error: 0 });
       setIsLoadingDocs(false);
@@ -63,7 +88,7 @@ export default function DashboardPage() {
     setIsLoadingDocs(true);
     try {
       const res = await fetchWithOrg("/api/documents", {
-        organizationId: activeOrg.id,
+        organizationId: activeOrgId,
       });
       if (res.ok) {
         const data: RecentDocument[] = await res.json();
@@ -80,7 +105,7 @@ export default function DashboardPage() {
     } finally {
       setIsLoadingDocs(false);
     }
-  }, [activeOrg]);
+  }, [activeOrgId]);
 
   useEffect(() => {
     fetchDocuments();
@@ -91,7 +116,7 @@ export default function DashboardPage() {
     router.push("/chat");
   }
 
-  const displayName = user?.email?.split("@")[0] ?? "usuário";
+  const displayName = profileName || user?.email?.split("@")[0] || "usuário";
   const recentSessions = sessions.slice(0, 5);
   const greeting = getGreeting();
 
@@ -122,12 +147,14 @@ export default function DashboardPage() {
               Crie ou selecione uma organização para começar a usar o assistente
               de documentação de validação.
             </p>
-            <Link
-              href="/onboarding"
-              className="mt-2 inline-flex items-center justify-center rounded-lg bg-[#10b981] px-6 py-2.5 text-sm font-semibold text-white transition hover:bg-[#059669]"
-            >
-              Criar organização
-            </Link>
+            <CreateOrganizationDialog>
+              <button
+                type="button"
+                className="mt-2 inline-flex items-center justify-center rounded-lg bg-[#10b981] px-6 py-2.5 text-sm font-semibold text-white transition hover:bg-[#059669] cursor-pointer"
+              >
+                Criar organização
+              </button>
+            </CreateOrganizationDialog>
           </div>
         </div>
       </AppShell>
@@ -282,23 +309,43 @@ export default function DashboardPage() {
                   Nenhum documento enviado ainda.
                 </p>
               ) : (
-                documents.map((doc) => (
-                  <div
-                    key={doc.id}
-                    className="flex items-center justify-between rounded-md px-3 py-2.5 transition hover:bg-[#1a1a1a]"
-                  >
-                    <div className="flex min-w-0 flex-col gap-0.5">
-                      <span className="truncate text-[13px] font-medium text-[#f5f5f5]">
-                        {doc.name}
-                      </span>
-                      <span className="flex items-center gap-1 text-[11px] text-[#a3a3a3]">
-                        <StatusDot status={doc.status} />
-                        {statusLabel(doc.status)} ·{" "}
-                        {formatRelativeDate(doc.created_at)}
-                      </span>
-                    </div>
-                  </div>
-                ))
+                documents.map((doc) => {
+                  const ext = doc.name.split(".").pop()?.toLowerCase() ?? "";
+                  return (
+                    <Link
+                      key={doc.id}
+                      href="/documents"
+                      className="flex w-full items-center gap-3 rounded-md px-3 py-2.5 text-inherit no-underline transition hover:bg-[#1a1a1a]"
+                    >
+                      <div
+                        className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-lg ${
+                          ext === "pdf"
+                            ? "bg-red-500/10 text-red-400"
+                            : ext === "xlsx" || ext === "xls"
+                              ? "bg-emerald-500/10 text-emerald-400"
+                              : ext === "docx" || ext === "doc"
+                                ? "bg-blue-500/10 text-blue-400"
+                                : "bg-[#262626] text-[#a3a3a3]"
+                        }`}
+                      >
+                        <FileText size={16} />
+                      </div>
+                      <div className="flex min-w-0 flex-1 flex-col gap-0.5">
+                        <span className="truncate text-[13px] font-medium text-[#f5f5f5]">
+                          {doc.name}
+                        </span>
+                        <span className="flex items-center gap-1 text-[11px] text-[#a3a3a3]">
+                          <Clock size={11} />
+                          {formatRelativeDate(doc.created_at)}
+                        </span>
+                      </div>
+                      <ArrowRight
+                        size={14}
+                        className="shrink-0 text-[#a3a3a3]"
+                      />
+                    </Link>
+                  );
+                })
               )}
             </div>
           </div>
@@ -362,18 +409,22 @@ function ActionCard({
 }) {
   const content = (
     <>
-      <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-[#1a1a1a] text-[#10b981]">
+      <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md bg-[#10b981]/15 text-[#10b981]">
         {icon}
       </div>
-      <div className="min-w-0">
+      <div className="min-w-0 flex-1">
         <p className="text-sm font-semibold text-[#f5f5f5]">{title}</p>
         <p className="mt-0.5 text-xs text-[#a3a3a3]">{description}</p>
       </div>
+      <ArrowRight
+        size={14}
+        className="shrink-0 text-[#525252] transition-transform group-hover:translate-x-0.5 group-hover:text-[#10b981]"
+      />
     </>
   );
 
   const classes =
-    "flex w-full items-center gap-3 rounded-lg border border-[#262626] bg-[#111111] px-5 py-4 text-left no-underline text-inherit transition hover:border-[#10b981]/40 hover:bg-[#111111]/80 cursor-pointer";
+    "group flex w-full items-center gap-3 rounded-lg border border-dashed border-[#333333] bg-transparent px-4 py-3.5 text-left no-underline text-inherit transition-all hover:border-[#10b981]/50 hover:bg-[#10b981]/5 cursor-pointer";
 
   if (href) {
     return (

@@ -3,12 +3,14 @@
 import { useState, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/contexts/AuthContext";
+import { useOrganization } from "@/contexts/OrganizationContext";
 import { createClient } from "@/lib/supabase/client";
 
 type Step = "welcome" | "create-org";
 
 export function OnboardingFlow() {
   const { user, isLoading: authLoading } = useAuth();
+  const { refreshOrganizations } = useOrganization();
   const router = useRouter();
 
   const [step, setStep] = useState<Step>("welcome");
@@ -39,6 +41,7 @@ export function OnboardingFlow() {
         throw new Error(`Erro ao criar perfil: ${rpcError.message}`);
       }
 
+      await refreshOrganizations();
       router.push("/");
     } catch (err) {
       setError(
@@ -79,6 +82,7 @@ export function OnboardingFlow() {
         throw new Error(`Erro ao criar organização: ${rpcError.message}`);
       }
 
+      await refreshOrganizations();
       router.push("/");
     } catch (err) {
       setError(

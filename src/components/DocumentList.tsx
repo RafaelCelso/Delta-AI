@@ -2,7 +2,6 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { useOrganization } from "@/contexts/OrganizationContext";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -28,6 +27,7 @@ interface Document {
   status: "processing" | "indexed" | "error";
   uploaded_by: string;
   created_at: string;
+  updated_at: string;
   file_size_bytes: number | null;
   profiles?: { full_name: string } | null;
 }
@@ -37,24 +37,6 @@ interface DocumentListProps {
   onViewTimeline?: (documentId: string, documentName: string) => void;
   selectedDocId?: string | null;
 }
-
-const STATUS_CONFIG: Record<string, { label: string; className: string }> = {
-  processing: {
-    label: "REVIEWING",
-    className:
-      "bg-amber-500/20 text-amber-400 border-amber-500/30 hover:bg-amber-500/20",
-  },
-  indexed: {
-    label: "VALIDATED",
-    className:
-      "bg-emerald-500/20 text-emerald-400 border-emerald-500/30 hover:bg-emerald-500/20",
-  },
-  error: {
-    label: "DRAFT",
-    className:
-      "bg-neutral-500/20 text-neutral-400 border-neutral-500/30 hover:bg-neutral-500/20",
-  },
-};
 
 function getFileIcon(fileType: string) {
   const type = fileType.toLowerCase();
@@ -91,8 +73,10 @@ export function DocumentList({
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
 
+  const activeOrgId = activeOrg?.id ?? null;
+
   const fetchDocuments = useCallback(async () => {
-    if (!activeOrg) {
+    if (!activeOrgId) {
       setDocuments([]);
       setIsLoading(false);
       return;
@@ -103,7 +87,7 @@ export function DocumentList({
 
     try {
       const params = new URLSearchParams({
-        organization_id: activeOrg.id,
+        organization_id: activeOrgId,
       });
       if (search.trim()) {
         params.set("search", search.trim());
@@ -126,7 +110,7 @@ export function DocumentList({
     } finally {
       setIsLoading(false);
     }
-  }, [activeOrg, search, statusFilter]);
+  }, [activeOrgId, search, statusFilter]);
 
   useEffect(() => {
     fetchDocuments();
@@ -176,18 +160,18 @@ export function DocumentList({
 
       {/* Table Header */}
       <div className="rounded-lg border border-border bg-card">
-        <div className="grid grid-cols-[1fr_140px_140px_100px_48px] items-center gap-2 border-b border-border px-4 py-3">
+        <div className="grid grid-cols-[1fr_140px_140px_140px_48px] items-center gap-2 border-b border-border px-4 py-3">
           <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
             Nome do Documento
           </span>
           <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-            Data de Upload
+            Criado em
+          </span>
+          <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+            Atualizado em
           </span>
           <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
             Usuário
-          </span>
-          <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-            Status
           </span>
           <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground text-center">
             Ação
@@ -211,22 +195,23 @@ export function DocumentList({
         ) : (
           <div>
             {documents.map((doc, index) => {
-              const uploadDate = new Date(doc.created_at).toLocaleDateString(
+              const createdDate = new Date(doc.created_at).toLocaleDateString(
                 "pt-BR",
                 { day: "2-digit", month: "short", year: "numeric" },
               );
-              const statusConfig =
-                STATUS_CONFIG[doc.status] ?? STATUS_CONFIG.error;
+              const updatedDate = new Date(doc.updated_at).toLocaleDateString(
+                "pt-BR",
+                { day: "2-digit", month: "short", year: "numeric" },
+              );
               const isSelected = selectedDocId === doc.id;
               const isLast = index === documents.length - 1;
-              const userName =
-                doc.profiles?.full_name ?? doc.uploaded_by ?? "Usuário";
+              const userName = doc.profiles?.full_name ?? "Usuário";
               const fileSize = formatFileSize(doc.file_size_bytes);
 
               return (
                 <div
                   key={doc.id}
-                  className={`grid grid-cols-[1fr_140px_140px_100px_48px] items-center gap-2 px-4 py-3 transition-colors hover:bg-secondary/50 cursor-pointer ${
+                  className={`grid grid-cols-[1fr_140px_140px_140px_48px] items-center gap-2 px-4 py-3 transition-colors hover:bg-secondary/50 cursor-pointer ${
                     isSelected ? "bg-secondary/70" : ""
                   } ${!isLast ? "border-b border-border/50" : ""}`}
                   onClick={() => onViewTimeline?.(doc.id, doc.name)}
@@ -248,28 +233,20 @@ export function DocumentList({
                     </div>
                   </div>
 
-                  {/* Upload Date */}
+                  {/* Created Date */}
                   <span className="text-sm text-muted-foreground">
-                    {uploadDate}
+                    {createdDate}
+                  </span>
+
+                  {/* Updated Date */}
+                  <span className="text-sm text-muted-foreground">
+                    {updatedDate}
                   </span>
 
                   {/* User */}
-                  <div className="flex items-center gap-2 min-w-0">
-                    <div className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-secondary text-[10px] font-medium text-foreground">
-                      {userName.charAt(0).toUpperCase()}
-                    </div>
-                    <span className="truncate text-sm text-muted-foreground">
-                      {userName}
-                    </span>
-                  </div>
-
-                  {/* Status */}
-                  <Badge
-                    variant="outline"
-                    className={`w-fit text-[10px] font-bold uppercase ${statusConfig.className}`}
-                  >
-                    {statusConfig.label}
-                  </Badge>
+                  <span className="truncate text-sm text-muted-foreground">
+                    {userName}
+                  </span>
 
                   {/* Actions */}
                   <div

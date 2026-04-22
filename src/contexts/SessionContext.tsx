@@ -6,6 +6,7 @@ import {
   useState,
   useCallback,
   useEffect,
+  useRef,
   useMemo,
   type ReactNode,
 } from "react";
@@ -53,8 +54,17 @@ export function SessionProvider({ children }: { children: ReactNode }) {
   const [refreshKey, setRefreshKey] = useState(0);
   const [searchFilters, setSearchFilters] = useState<SessionSearchFilters>({});
 
+  // Use the org id as a stable primitive dependency instead of the object
+  const activeOrgId = activeOrg?.id ?? null;
+
+  // Keep a ref to the org id so callbacks can read the latest value
+  // without being recreated when it changes.
+  const activeOrgIdRef = useRef(activeOrgId);
+  activeOrgIdRef.current = activeOrgId;
+
   const fetchSessions = useCallback(async () => {
-    if (!activeOrg) {
+    const orgId = activeOrgIdRef.current;
+    if (!orgId) {
       setSessions([]);
       setIsLoading(false);
       return;
@@ -73,7 +83,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
       const baseUrl = hasFilters ? "/api/sessions/search" : "/api/sessions";
 
       const params = new URLSearchParams({
-        organization_id: activeOrg.id,
+        organization_id: orgId,
       });
 
       if (searchFilters.q) params.set("q", searchFilters.q);
@@ -96,25 +106,27 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     } finally {
       setIsLoading(false);
     }
-  }, [activeOrg, searchFilters]);
+  }, [searchFilters]);
 
+  // Fetch sessions when org changes or refreshKey bumps
   useEffect(() => {
     fetchSessions();
-  }, [fetchSessions, refreshKey]);
+  }, [activeOrgId, fetchSessions, refreshKey]);
 
   // Reset active session when org changes
   useEffect(() => {
     setActiveSession(null);
-  }, [activeOrg?.id]);
+  }, [activeOrgId]);
 
   const createNewSession = useCallback(async () => {
-    if (!activeOrg) return;
+    const orgId = activeOrgIdRef.current;
+    if (!orgId) return;
 
     try {
       const res = await fetch("/api/sessions", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ organization_id: activeOrg.id }),
+        body: JSON.stringify({ organization_id: orgId }),
       });
 
       if (!res.ok) {
@@ -128,7 +140,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     } catch (err) {
       setError(err instanceof Error ? err.message : "Erro desconhecido.");
     }
-  }, [activeOrg]);
+  }, []);
 
   const refreshSessions = useCallback(() => {
     setRefreshKey((k) => k + 1);

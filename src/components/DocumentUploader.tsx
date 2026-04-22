@@ -47,7 +47,7 @@ export function DocumentUploader({
         return;
       }
 
-      if (!activeOrg) {
+      if (!activeOrg?.id) {
         setError("Selecione uma organização antes de enviar documentos.");
         return;
       }
@@ -103,7 +103,7 @@ export function DocumentUploader({
         setTimeout(() => setProgress(0), 1000);
       }
     },
-    [activeOrg, onUploadComplete, onDuplicateDetected],
+    [activeOrg?.id, onUploadComplete, onDuplicateDetected],
   );
 
   function handleDragOver(e: DragEvent<HTMLDivElement>) {

@@ -34,7 +34,7 @@ export async function GET(request: NextRequest) {
 
   let query = supabase
     .from("documents")
-    .select("*")
+    .select("*, profiles:uploaded_by(full_name)")
     .eq("organization_id", organizationId)
     .order("created_at", { ascending: false });
 

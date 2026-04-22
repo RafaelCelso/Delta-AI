@@ -41,7 +41,9 @@ export async function updateSession(request: NextRequest) {
   if (
     !user &&
     !pathname.startsWith("/login") &&
-    !pathname.startsWith("/onboarding")
+    !pathname.startsWith("/onboarding") &&
+    !pathname.startsWith("/auth/callback") &&
+    !pathname.startsWith("/reset-password")
   ) {
     const url = request.nextUrl.clone();
     url.pathname = "/login";
@@ -54,7 +56,9 @@ export async function updateSession(request: NextRequest) {
   if (
     user &&
     !pathname.startsWith("/login") &&
-    !pathname.startsWith("/onboarding")
+    !pathname.startsWith("/onboarding") &&
+    !pathname.startsWith("/reset-password") &&
+    !pathname.startsWith("/auth/callback")
   ) {
     const { data: profile } = await supabase
       .from("profiles")

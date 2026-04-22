@@ -77,8 +77,10 @@ export function DocumentActivityLog({ refreshKey }: DocumentActivityLogProps) {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
+  const activeOrgId = activeOrg?.id ?? null;
+
   const fetchActivity = useCallback(async () => {
-    if (!activeOrg) {
+    if (!activeOrgId) {
       setEvents([]);
       setIsLoading(false);
       return;
@@ -89,7 +91,7 @@ export function DocumentActivityLog({ refreshKey }: DocumentActivityLogProps) {
 
     try {
       const params = new URLSearchParams({
-        organization_id: activeOrg.id,
+        organization_id: activeOrgId,
         limit: "15",
       });
       const res = await fetch(`/api/documents/activity?${params.toString()}`);
@@ -106,7 +108,7 @@ export function DocumentActivityLog({ refreshKey }: DocumentActivityLogProps) {
     } finally {
       setIsLoading(false);
     }
-  }, [activeOrg]);
+  }, [activeOrgId]);
 
   useEffect(() => {
     fetchActivity();

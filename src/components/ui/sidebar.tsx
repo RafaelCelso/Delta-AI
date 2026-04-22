@@ -13,11 +13,12 @@ import {
   Plus,
   Settings,
   Trash2,
+  UserPen,
 } from "lucide-react";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { useState } from "react";
+import { useState, useRef, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -30,6 +31,7 @@ import { Separator } from "@/components/ui/separator";
 import { useAuth } from "@/contexts/AuthContext";
 import { useOrganization } from "@/contexts/OrganizationContext";
 import { useSession } from "@/contexts/SessionContext";
+import { CreateOrganizationDialog } from "@/components/CreateOrganizationDialog";
 
 const sidebarVariants = {
   open: {
@@ -85,11 +87,19 @@ function formatDate(iso: string) {
 }
 
 export function AppSidebar() {
-  const [isCollapsed, setIsCollapsed] = useState(true);
+  const isHovering = useRef(false);
+  const [isCollapsed, setIsCollapsed] = useState(() => !isHovering.current);
   const [chatExpanded, setChatExpanded] = useState(true);
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
   const pathname = usePathname();
   const router = useRouter();
+
+  // Keep sidebar open if cursor is still hovering after a route change
+  useEffect(() => {
+    if (isHovering.current) {
+      setIsCollapsed(false);
+    }
+  }, [pathname]);
   const { user, signOut } = useAuth();
   const { activeOrg, organizations, setActiveOrg } = useOrganization();
   const {
@@ -103,7 +113,9 @@ export function AppSidebar() {
 
   const displayName = user?.email ?? "Usuário";
   const initials = displayName.split("@")[0].slice(0, 2).toUpperCase();
-  const orgInitial = activeOrg?.name?.charAt(0).toUpperCase() ?? "O";
+  const orgInitial =
+    activeOrg?.name?.charAt(0).toUpperCase() ??
+    (organizations.length === 0 ? "—" : "O");
 
   const isDashboardActive = pathname === "/" || pathname === "/dashboard";
   const isChatActive = pathname?.startsWith("/chat");
@@ -136,8 +148,14 @@ export function AppSidebar() {
       animate={isCollapsed ? "closed" : "open"}
       variants={sidebarVariants}
       transition={transitionProps}
-      onMouseEnter={() => setIsCollapsed(false)}
-      onMouseLeave={() => setIsCollapsed(true)}
+      onMouseEnter={() => {
+        isHovering.current = true;
+        setIsCollapsed(false);
+      }}
+      onMouseLeave={() => {
+        isHovering.current = false;
+        setIsCollapsed(true);
+      }}
     >
       <motion.div
         className="relative z-40 flex text-muted-foreground h-full shrink-0 flex-col bg-[#111111] transition-all"
@@ -183,8 +201,17 @@ export function AppSidebar() {
                       >
                         {!isCollapsed && (
                           <>
-                            <p className="text-sm font-medium truncate max-w-[120px]">
-                              {activeOrg?.name ?? "Organização"}
+                            <p
+                              className={cn(
+                                "text-sm font-medium",
+                                organizations.length === 0
+                                  ? "text-muted-foreground italic whitespace-nowrap"
+                                  : "truncate max-w-[120px]",
+                              )}
+                            >
+                              {organizations.length === 0
+                                ? "Nenhuma organização"
+                                : (activeOrg?.name ?? "Organização")}
                             </p>
                             <ChevronsUpDown className="h-4 w-4 text-muted-foreground/50" />
                           </>
@@ -211,12 +238,14 @@ export function AppSidebar() {
                       </DropdownMenuItem>
                     ))}
                     {organizations.length > 0 && <DropdownMenuSeparator />}
-                    <DropdownMenuItem
-                      asChild
-                      className="flex items-center gap-2 cursor-pointer"
-                    >
-                      <Link href="/onboarding">Criar organização</Link>
-                    </DropdownMenuItem>
+                    <CreateOrganizationDialog>
+                      <DropdownMenuItem
+                        onSelect={(e) => e.preventDefault()}
+                        className="flex items-center gap-2 cursor-pointer"
+                      >
+                        Criar organização
+                      </DropdownMenuItem>
+                    </CreateOrganizationDialog>
                   </DropdownMenuContent>
                 </DropdownMenu>
               </div>
@@ -466,6 +495,15 @@ export function AppSidebar() {
                           </span>
                         </div>
                       </div>
+                      <DropdownMenuSeparator />
+                      <DropdownMenuItem asChild>
+                        <Link
+                          href="/profile"
+                          className="flex items-center gap-2 cursor-pointer"
+                        >
+                          <UserPen className="h-4 w-4" /> Editar Perfil
+                        </Link>
+                      </DropdownMenuItem>
                       <DropdownMenuSeparator />
                       <DropdownMenuItem
                         className="flex items-center gap-2 cursor-pointer"

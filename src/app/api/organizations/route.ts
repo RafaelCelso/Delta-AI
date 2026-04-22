@@ -1,9 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
 
 /**
  * POST /api/organizations — Create a new organization.
  * The authenticated user becomes the owner and is added as a member.
+ * Uses the admin client to bypass the chicken-and-egg RLS problem where
+ * adding a member to organization_members requires already being a member.
  */
 export async function POST(request: NextRequest) {
   const supabase = await createClient();
@@ -35,8 +38,11 @@ export async function POST(request: NextRequest) {
     );
   }
 
+  // Use admin client to bypass RLS for the atomic org + member creation
+  const admin = createAdminClient();
+
   // Create the organization (owner_id = current user)
-  const { data: org, error: orgError } = await supabase
+  const { data: org, error: orgError } = await admin
     .from("organizations")
     .insert({ name, owner_id: user.id })
     .select("id, name, owner_id, created_at, updated_at")
@@ -50,7 +56,7 @@ export async function POST(request: NextRequest) {
   }
 
   // Add the creator as a member of the organization
-  const { error: memberError } = await supabase
+  const { error: memberError } = await admin
     .from("organization_members")
     .insert({ organization_id: org.id, user_id: user.id });
 
