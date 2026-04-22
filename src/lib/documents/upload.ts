@@ -15,9 +15,44 @@ import { validateFileFormat } from "./validation";
 const STORAGE_BUCKET = "documents";
 
 /**
+ * Sanitiza um nome de arquivo para uso como chave no Supabase Storage.
+ *
+ * Remove acentos/diacríticos via NFD + strip de combining marks, substitui
+ * caracteres não seguros por hífens e colapsa hífens consecutivos.
+ *
+ * @param filename - Nome original do arquivo (ex.: "Portaria nº 302.pdf")
+ * @returns Nome seguro para uso em storage keys (ex.: "Portaria-n-302.pdf")
+ */
+export function sanitizeFilename(filename: string): string {
+  // Separar extensão para preservá-la intacta
+  const lastDot = filename.lastIndexOf(".");
+  const name = lastDot > 0 ? filename.slice(0, lastDot) : filename;
+  const ext = lastDot > 0 ? filename.slice(lastDot) : "";
+
+  const sanitized = name
+    // Decompor acentos (é → e + combining accent) e remover combining marks
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    // Substituir qualquer caractere que não seja alfanumérico, hífen ou underscore
+    .replace(/[^a-zA-Z0-9_-]/g, "-")
+    // Colapsar hífens consecutivos
+    .replace(/-{2,}/g, "-")
+    // Remover hífens no início e fim
+    .replace(/^-+|-+$/g, "");
+
+  // Fallback caso o nome fique vazio após sanitização
+  const safeName = sanitized || "documento";
+
+  return `${safeName}${ext.toLowerCase()}`;
+}
+
+/**
  * Gera o caminho de armazenamento para um documento no Storage.
  *
- * Formato: `organizations/{orgId}/documents/{timestamp}-{filename}`
+ * Formato: `organizations/{orgId}/documents/{timestamp}-{sanitizedFilename}`
+ *
+ * O nome do arquivo é sanitizado para conter apenas caracteres ASCII seguros,
+ * evitando erros de "Invalid key" no Supabase Storage.
  *
  * @param orgId - ID da organização
  * @param filename - Nome original do arquivo
@@ -25,7 +60,8 @@ const STORAGE_BUCKET = "documents";
  */
 export function generateStoragePath(orgId: string, filename: string): string {
   const timestamp = Date.now();
-  return `organizations/${orgId}/documents/${timestamp}-${filename}`;
+  const safeName = sanitizeFilename(filename);
+  return `organizations/${orgId}/documents/${timestamp}-${safeName}`;
 }
 
 export interface UploadDocumentOptions {
