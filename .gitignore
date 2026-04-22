@@ -1,8 +1,8 @@
 # Dependencies
 node_modules/
 
-# Migration
-supabase/
+# Migration (only root-level supabase CLI folder)
+/supabase/
 
 # Tests
 tests/
